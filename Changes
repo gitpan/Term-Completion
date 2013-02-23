@@ -1,5 +1,34 @@
 Revision history for Perl extension Term::Completion.
 
+1.00 Mon Feb 24 2013
+Wow - 4 years of silence... sorry for that...
+
+Slight change in the API: the "validate" callback is now supposed to return
+undef (the undefined value) in case the validation failed; this was required 
+to allow "false" values (in the sense of Perl, like 0, '') as correct
+return values (defined) of the validation callback.
+
+A couple of minor bug fixes and improvements, tested with on a bunch of
+platforms, in an attempt to increase portability:
+- Windows / ActivePerl
+- Windows / Cygwin
+- Windows / SUA
+- Linux
+- Solaris
+
+Fixed a few POD errors and added POD for T:C:Multi and :Path.
+
+CPAN #83424: Bug in Term::Completion
+- fixed deprecated goto (with Perl 5.12 and higher)
+
+CPAN #77772: [wish] on-demand alternative to (automatic) help
+- implemented propsal, thanks for the patch!
+
+CPAN #77697: Warning 'Use of uninitialized value' when scrolling if input
+             text is not matched
+- applied patch, thanks a lot!
+
+
 0.91  Fri Feb 27 15:37:32 CET 2009
         - first release to CPAN with already good test coverage:
 ---------------------------- ------ ------ ------ ------ ------ ------ ------

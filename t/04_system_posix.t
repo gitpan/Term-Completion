@@ -9,6 +9,9 @@ BEGIN {
   if($@) {
     %test_arg = (skip_all => 'POSIX and Term::Size are required for testing Term::Completion qw(:POSIX)');
   }
+  elsif($^O =~ /win/i && $^O !~ /cygwin/i) {
+    %test_arg = (skip_all => 'This test does not work on native Windows');
+  }
 }
 use Test::More %test_arg;
 

@@ -1,4 +1,4 @@
-Term-Completion version 0.91
+Term-Completion version 1.00
 ============================
 
 Term::Completion - read one line of user input, with convenience functions
@@ -28,10 +28,21 @@ COPYRIGHT AND LICENCE
 
 Put the correct copyright and licence information here.
 
-Copyright (C) 2008 by Marek Rouchal
+Copyright (C) 2008-2013 by Marek Rouchal
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,
 at your option, any later version of Perl 5 you may have available.
 
+TODO
+====
+
+- get_choices() should use a cache (in T:C:Path), which is invalidated by 
+  typing of BS or ordinary characters
+
+- write a T:C:MultiPath, allowing entry or several paths (separated by blanks)
+  ...and figure out how to efficiently implement CTRL-W in that situation
+
+- works on Windows with Term::ReadKey?
+  No, it doesn't. Need to investigate how to do single key reads on Win.
 

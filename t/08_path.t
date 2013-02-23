@@ -41,6 +41,8 @@ foreach my $test (sort keys %TESTS) {
   my $result = Term::Completion::Path->new(
         in => $in_fh,
         out => $out_fh,
+	columns => 80, rows => 24,
+	sep => '/',
         %arg
   )->complete();
 

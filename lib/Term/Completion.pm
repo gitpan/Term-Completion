@@ -9,7 +9,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(Complete);
 
-our $VERSION = '0.91';
+our $VERSION = '1.00';
 
 our %DEFAULTS = (
     # input/output channels
@@ -35,6 +35,7 @@ our %DEFAULTS = (
     eol      => "\r\n",
     del_one  => "\b \b",
     # help
+    help     => undef,
     helptext => undef,
     # default: empty list of choices
     choices  => [],
@@ -47,8 +48,8 @@ sub import
   my $class = shift;
   my @syms;
   # TODO Win32?
-  my $termhandler = 'Term::Completion::_readkey';
-    #'Term::Completion::_POSIX');
+  my $termhandler = ($^O !~ /interix/i ? 'Term::Completion::_readkey' :
+    'Term::Completion::_POSIX');
   foreach(@_) {
     if(/^:posix$/) {
       $termhandler = 'Term::Completion::_POSIX';
@@ -121,6 +122,14 @@ sub Complete
 # sub get_key
 # virtual - defined in tty driver classes
 
+sub show_help
+{
+  my __PACKAGE__ $this = shift;
+  my $text = $this->{helptext} || '';
+  $text =~ s/\r?\n|\n?\r/$this->{eol}/g;
+  $this->{out}->print($text);
+}
+
 sub complete
 {
   my __PACKAGE__ $this = shift;
@@ -128,8 +137,8 @@ sub complete
   my $return = $this->{default};
   my $r = length($return);
 
-  if(defined $this->{helptext}) {
-    $this->{out}->print($this->{helptext});
+  if(defined $this->{helptext} && !defined $this->{help}) {
+    $this->show_help();
   }
 
   # we grab full control of the terminal, switch off echo
@@ -142,15 +151,17 @@ sub complete
 
   # handle terminal size changes
   # save any existing signal handler
-  $this->{_sig_winch} = $SIG{WINCH};
-  # set new signal handler
-  local $SIG{'WINCH'} = sub {
-    if($this->{_sig_winch}) {
-      &{$this->{_sig_winch}};
-    }
-    # write new prompt and completion line
-    $this->{out}->print($this->{eol}, $this->{prompt}, $return);
-  };
+  if(exists $SIG{'WINCH'}) {
+    $this->{_sig_winch} = $SIG{WINCH};
+    # set new signal handler
+    local $SIG{'WINCH'} = sub {
+      if($this->{_sig_winch}) {
+        &{$this->{_sig_winch}};
+      }
+      # write new prompt and completion line
+      $this->{out}->print($this->{eol}, $this->{prompt}, $return);
+    };
+  }
 
   # main loop for completion
   LOOP: {
@@ -175,12 +186,12 @@ sub complete
           my @match = $this->get_choices($return);
           if (@match == 0) {
             # sound bell if there is no match
-            $this->{out}->print($this->{bell});
+            $this->bell();
           } else {
             my $l = length(my $test = shift(@match));
             if(@match) {
               # sound bell if multiple choices
-              $this->{out}->print($this->{bell});
+              $this->bell();
             }
             elsif($this->{delim}) {
               $test .= $this->{delim};
@@ -212,6 +223,17 @@ sub complete
           redo LOOP;
         };
 
+        # on-demand help
+        if(defined $this->{help}) {
+          $_ =~ $this->{help} && do {
+            if(defined $this->{helptext}) {
+              $this->{out}->print($this->{eol});
+              $this->show_help();
+            }
+            redo LOOP;
+          };
+        }
+
         # (^U) kill
         $_ =~ $this->{'kill'} && do {
           if ($r) {
@@ -242,7 +264,7 @@ sub complete
             my $sep = '';
             $sep = $this->{sep} if defined $this->{sep};
             $sep .= $this->{delim} if defined $this->{delim};
-            if(length($sep) && $return =~ s/((?:^|[$sep]+)[^$sep]*[$sep]*)$//s) {
+            if(length($sep) && $return =~ s/((?:^|[$sep$sep]+)[^$sep$sep]*[$sep$sep]*)$//s) {
               my $cut = $1;
               $this->{out}->print($this->{del_one} x length($cut));
               $r = length($return);
@@ -256,32 +278,48 @@ sub complete
         $_ =~ $this->{up} && do {
           unless(defined $choice_num) {
             @choice_cycle = $this->get_choices($return);
-            $choice_num = $#choice_cycle;
+            if(defined $choice_cycle[$#choice_cycle]) {
+              $choice_num = $#choice_cycle;
+            }
           } else {
             if($choice_num <= 0) {
               $choice_num = @choice_cycle; # TODO get_choices returns number in scalar context?
             }
             $choice_num--;
           }
-          goto PRINT_UPDOWN_ITEM;
+          #TODO only delete/print differences, not full string
+          unless(defined $choice_num) {
+            $this->bell();
+          } else {
+            $this->{out}->print($this->{del_one} x length($return));
+            $return = $choice_cycle[$choice_num];
+            $this->{out}->print($return);
+            $r = length($return);
+          }
+          last CASE;
         };
 
         # down (CTRL-N)
         $_ =~ $this->{down} && do {
           unless(defined $choice_num) {
             @choice_cycle = $this->get_choices($return);
-            $choice_num = 0;
+            if(defined $choice_cycle[0]) {
+              $choice_num = 0;
+            }
           } else {
             if(++$choice_num >= @choice_cycle) {
               $choice_num = 0;
             }
           }
-        PRINT_UPDOWN_ITEM:
           #TODO only delete/print differences, not full string
-          $this->{out}->print($this->{del_one} x length($return));
-          $return = $choice_cycle[$choice_num];
-          $this->{out}->print($return);
-          $r = length($return);
+          unless(defined $choice_num) {
+            $this->bell();
+          } else {
+            $this->{out}->print($this->{del_one} x length($return));
+            $return = $choice_cycle[$choice_num];
+            $this->{out}->print($return);
+            $r = length($return);
+          }
           last CASE;
         };
 
@@ -296,7 +334,7 @@ sub complete
 
         $_ !~ /^\x1b/ && do {
           # sound bell and reset any unknown key
-          $this->{out}->print($this->{bell});
+          $this->bell();
           $_ = '';
         };
         next GETC; # nothing matched - get new character
@@ -330,7 +368,7 @@ sub validate
     # arrayref with message to print and code ref
     my ($msg, $cb) = @{$this->{validate}};
     my $match = &$cb($return);
-    unless($match) {
+    unless(defined $match) {
       $this->{out}->print($msg,$this->{eol});
       return;
     }
@@ -435,6 +473,13 @@ sub validate
   return $return;
 }
 
+sub bell
+{
+  my __PACKAGE__ $this = shift;
+  my $bell = $this->{bell};
+  $this->{out}->print($bell) if $bell;
+}
+
 sub get_choices
 {
   my __PACKAGE__ $this = shift;
@@ -469,16 +514,20 @@ sub _show_choices {
   grep(length > $MAXWIDTH && ($MAXWIDTH = length), @choices);
   $MAXWIDTH++; # add one for a blank between the columns
 
-  $this->{_winch} = 0;
-  local $SIG{'WINCH'} = sub {
-    $this->{_winch}++;
-    if($this->{_sig_winch}) {
-      return &{$this->{_sig_winch}};
-    }
-  };
+  if(exists $SIG{'WINCH'}) {
+    $this->{_winch} = 0;
+    local $SIG{'WINCH'} = sub {
+      $this->{_winch}++;
+      if($this->{_sig_winch}) {
+        return &{$this->{_sig_winch}};
+      }
+    };
+  }
 
+  my ($COLUMNS,$ROWS) = ($this->{columns}, $this->{rows});
   START_PAGING: {
-    my ($COLUMNS,$ROWS) = $this->get_term_size();
+    ($COLUMNS,$ROWS) = $this->get_term_size()
+      unless $COLUMNS && $ROWS;
     my $maxwidth = $MAXWIDTH;
     my $columns = $maxwidth >= $COLUMNS ? 1 : int($COLUMNS / $maxwidth);
 
@@ -506,7 +555,9 @@ sub _show_choices {
         elsif($this->{_winch}) {
           # winch signaled, restart paging
           $this->{_winch} = 0;
-          $this->{out}->print($this->{bell},$this->{eol});
+          $this->bell();
+          $this->{out}->print($this->{eol});
+	  $COLUMNS = $ROWS = undef;
           redo START_PAGING;
         }
         elsif($c =~ $this->{enter}) {
@@ -620,6 +671,8 @@ function:
   use Term::Completion qw(Complete);
   my $result = Complete($prompt, @choices);
 
+=back
+
 =head2 Methods
 
 Term::Completion objects are simple hashes. All fields are fully
@@ -700,9 +753,14 @@ this callback:
     choices => [ qw(1.2 1.5 1.8 2.0 2.5 3.3) ],
     validate => [
       'Voltage must be a positive, non-zero value' =>
-      sub { $_[0] > 0.0 }
+      sub { $_[0] > 0.0 ? $_[0] : undef }
     ]
   );
+
+Note that the given code reference will be passed the one single
+argument, namely the current input string, and is supposed to return
+I<undef> if the input is invalid, or the (potentially corrected) string,
+like in the example above.
 
 =item get_choices($answer)
 
@@ -743,7 +801,7 @@ the corresponding key/value pair in the arguments. Find below the list
 of configurable options, their default value and their purpose.
 
 The key definitions are regular expressions (C<qr/.../>) - this allows
-to match multiple keys for the same action, as well as diable the
+to match multiple keys for the same action, as well as disable the
 action completely by specifying an expression that will never match a 
 single character, e.g. C<qr/-disable-/>.
 
@@ -853,17 +911,25 @@ C<"\r\n">.
 The characters to print for deleting one character (to the left).
 Default is C<"\b \b">.
 
+=item C<help>
+
+Regular expression matching those keys that print C<helptext> on-demand.
+Furthermore, with C<help> defined (I<undef>), automatic printing of
+C<helptext> by the C<complete()> method is disabled (enabled).
+Default is I<undef>, for backwards compatibility; C<qr/\?/> is suggested.
+
 =item C<helptext>
 
 This is an optional text which is printed by the C<complete()> method
-before the actual completion process starts. It may be a multi-line
-string and should end with a newline character. Default is I<undef>. The
-text could for example look like this:
+before the actual completion process starts, unless C<help> is defined.
+It may be a multi-line string and should end with a newline character.
+Default is I<undef>. The text could for example look like this:
+
   helptext => <<'EOT',
     You may use the following control keys here:
       TAB      complete the word
       CTRL-D   show list of matching choices (same as TAB-TAB)
-      CTRL-U   delete the input
+      CTRL-U   delete the entire input
       CTRL-H   delete a character (backspace)
       CTRL-P   cycle through choices (backward) (also up arrow)
       CTRL-N   cycle through choices (forward) (also down arrow)
@@ -995,11 +1061,16 @@ L<Term::ReadLine>
 
 =head1 AUTHOR
 
-Marek Rouchal, E<lt>rouchal@muc.infineon.comE<gt>
+Marek Rouchal, E<lt>marekr@cpan.org<gt>
+
+=head1 BUGS
+
+Please submit patches, bug reports and suggestions via the CPAN tracker
+L<http://rt.cpan.org>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009 by Marek Rouchal
+Copyright (C) 2009-2013 by Marek Rouchal
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,

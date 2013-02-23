@@ -21,4 +21,4 @@ t/05_system_stty.t
 t/06_readkey.t
 t/07_multi.t
 t/08_path.t
-TODO
+t/09_scroll.t

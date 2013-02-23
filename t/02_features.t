@@ -17,7 +17,7 @@ BEGIN {
     choices => [ qw(Apple Banana Cherry Duriam) ],
     helptext => "Do you like nice fruit?\n",
     'IN' => "\chR\chB\t\r",
-    'OUT' => "Do you like nice fruit?\nFruit: R\ch \chBanana\r\n",
+    'OUT' => "Do you like nice fruit?\r\nFruit: R\ch \chBanana\r\n",
     'RESULT' => 'Banana'
   },
   '003 unknown escape' => {
@@ -222,7 +222,7 @@ foreach my $test (sort keys %TESTS) {
   my $result = Term::Completion->new(
         in => $in_fh,
         out => $out_fh,
-        #columns => 80, rows => 24, # to suppress Term::Size on IO::String
+        columns => 80, rows => 24, # to suppress Term::Size on IO::String
         %arg
   )->complete();
 

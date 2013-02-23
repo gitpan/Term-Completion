@@ -1,9 +1,0 @@
-- get_choices() should use a cache (in T:C:Path), which is invalidated by 
-  typing of BS or ordinary characters
-
-- write a T:C:MultiPath, allowing entry or several paths (separated by blanks)
-  ...and figure out how to efficiently implement CTRL-W in that situation
-
-- works on Windows with Term::ReadKey?
-  No, it doesn't. Need to investigate how to do single key reads on Win.
-

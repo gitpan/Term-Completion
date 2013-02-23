@@ -10,14 +10,14 @@ BEGIN {
     choices => [ qw(Apple Banana Cherry Duriam) ],
     'IN' => "A\tB\t\r",
     'OUT' => "Fruit: Apple Banana \r\n",
-    'RESULT' => 'Apple Banana'
+    'RESULT' => [ qw(Apple Banana) ]
   },
   '002 wipe till delimiter' => {
     prompt => 'Fruit: ',
     choices => [ qw(Apple Banana Cherry Duriam) ],
     'IN' => "\cwC\tRaspberry\cw D\t\r",
     'OUT' => "Fruit: Cherry Raspberry\ch \ch\ch \ch\ch \ch\ch \ch\ch \ch\ch \ch\ch \ch\ch \ch\ch \ch\ch \ch Duriam \r\n",
-    'RESULT' => 'Cherry Duriam'
+    'RESULT' => [ qw(Cherry Duriam) ]
   },
   '003 multi validation' => {
     prompt => 'Fruit: ',
@@ -25,14 +25,14 @@ BEGIN {
     validate => 'fromchoices',
     'IN' => "A\tB\tEgg\r\cw\r",
     'OUT' => "Fruit: Apple Banana Egg\r\nERROR: You must choose one item from the list!\r\nFruit: Apple Banana Egg\ch \ch\ch \ch\ch \ch\ch \ch\r\n",
-    'RESULT' => 'Apple Banana'
+    'RESULT' => [ qw(Apple Banana) ]
   },
-  '001 show choices' => {
+  '004 show choices' => {
     prompt => 'Fruit: ',
     choices => [ qw(Apple Banana Cherry Duriam) ],
     'IN' => "A\tB\cd\t\r",
     'OUT' => "Fruit: Apple B\r\nBanana \r\nFruit: Apple Banana \r\n",
-    'RESULT' => 'Apple Banana'
+    'RESULT' => [ qw(Apple Banana) ]
   },
 );
 
@@ -55,13 +55,15 @@ foreach my $test (sort keys %TESTS) {
   my $expected_out = delete($arg{OUT});
   my $expected_result = delete($arg{RESULT});
 
-  my $result = Term::Completion::Multi->new(
+  my @result = Term::Completion::Multi->new(
         in => $in_fh,
         out => $out_fh,
+	columns => 80,
+	rows => 24,
         %arg
   )->complete();
 
-  is($result, $expected_result, "$test: complete() returned correct value");
+  is_deeply(\@result, $expected_result, "$test: complete() returned correct list");
   is($out, $expected_out, "$test: correct data sent to terminal");
   $out =~ s#\t#\\t#g;
   $out =~ s#\r#\\r#g;

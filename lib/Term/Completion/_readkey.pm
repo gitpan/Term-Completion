@@ -6,14 +6,14 @@ use Term::ReadKey qw(ReadMode ReadKey GetTerminalSize);
 sub set_raw_tty
 {
   my __PACKAGE__ $this = shift;
-  ReadMode 4, $this->{in};
+  ReadMode 4, $this->{in} if -t $this->{in};
   1;
 }
 
 sub reset_tty
 {
   my __PACKAGE__ $this = shift;
-  ReadMode 0, $this->{in};
+  ReadMode 0, $this->{in} if -t $this->{in};
   1;
 }
 
@@ -23,19 +23,23 @@ sub get_key
   ReadKey(0, $this->{in});
 }
 
-sub get_term_size
-{
-  my __PACKAGE__ $this = shift;
-  if(defined $this->{columns} and defined $this->{rows}) {
-    return($this->{columns},  $this->{rows});
-  }
-  my ($c,$r) = GetTerminalSize($this->{out});
-  $c ||= $Term::Completion::DEFAULTS{columns};
-  $r ||= $Term::Completion::DEFAULTS{rows};
-  return (
-    (defined $this->{columns} ? $this->{columns} : $c),
-    (defined $this->{rows}    ? $this->{rows}    : $r)
-  );
+if($^O =~ /interix|win/i) {
+  require Term::Completion::_termsize;
+  *get_term_size = \&Term::Completion::_termsize::get_term_size;
+} else {
+  *get_term_size = sub {
+    my __PACKAGE__ $this = shift;
+    if(defined $this->{columns} and defined $this->{rows}) {
+      return($this->{columns},  $this->{rows});
+    }
+    my ($c,$r) = GetTerminalSize($this->{out});
+    $c ||= $Term::Completion::DEFAULTS{columns};
+    $r ||= $Term::Completion::DEFAULTS{rows};
+    return (
+      (defined $this->{columns} ? $this->{columns} : $c),
+      (defined $this->{rows}    ? $this->{rows}    : $r)
+    );
+  };
 }
 
 1;
